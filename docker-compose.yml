@@ -1,6 +1,12 @@
 name: immich
 
 services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx_container
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    network_mode: "service:immich-ts"
   immich-ts:
     image: tailscale/tailscale
     container_name: immich-ts
