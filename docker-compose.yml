@@ -4,11 +4,32 @@ services:
     image: nginx:latest
     container_name: nginx
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${NGINX_CONFIG_LOCATION}:/etc/nginx/nginx.conf:ro
       - ./certs/nginx.key:/certs/nginx.key:ro
       - ./certs/nginx.crt:/certs/nginx.crt:ro
     network_mode: "service:tailscale"
     restart: unless-stopped
+  monitoring:
+    image: nicolargo/glances:latest-full
+    pid: host
+    network_mode: "service:tailscale"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/glances/glances.conf:/etc/glances.conf
+    environment:
+      - "GLANCES_OPT=-w -C /etc/glances.conf"
+  samba:
+    image: dperson/samba
+    environment:
+      TZ: 'EST5EDT'
+    network_mode: "service:tailscale"
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    volumes:
+      - ./data/:/mnt:z
+    command: '-s "Mount;/mnt"'
   tailscale:
     image: tailscale/tailscale
     container_name: tailscale
