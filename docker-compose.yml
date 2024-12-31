@@ -1,39 +1,13 @@
 name: homecloud
 services:
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    volumes:
-      - ${NGINX_CONFIG_LOCATION}:/etc/nginx/nginx.conf:ro
-      - ./certs/nginx.key:/certs/nginx.key:ro
-      - ./certs/nginx.crt:/certs/nginx.crt:ro
-    network_mode: "service:tailscale"
-    restart: unless-stopped
-  monitoring:
-    image: nicolargo/glances:latest-full
-    pid: host
-    network_mode: "service:tailscale"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./config/glances/glances.conf:/etc/glances.conf
-    environment:
-      - "GLANCES_OPT=-w -C /etc/glances.conf"
-  samba:
-    image: dperson/samba
-    environment:
-      TZ: 'EST5EDT'
-    network_mode: "service:tailscale"
-    read_only: true
-    tmpfs:
-      - /tmp
-    restart: unless-stopped
-    volumes:
-      - ./data/:/mnt:z
-    command: '-s "Mount;/mnt"'
-  tailscale:
+
+# -------------------------------
+# Immich
+# -------------------------------
+  immich-tailscale:
     image: tailscale/tailscale
     container_name: tailscale
-    hostname: homecloud
+    hostname: immich
     cap_add:
       - net_admin
       - sys_module
@@ -41,21 +15,18 @@ services:
       - TS_AUTHKEY=${TS_CLIENT_SECRET}
       - TS_EXTRA_ARGS=--advertise-tags=tag:container --reset
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_SERVE_CONFIG=/config/serve-config.json
       - TS_USERSPACE=false
+      - TS_SERVE_CONFIG=/config/serve.json
     volumes:
-      - ${TS_DATA_LOCATION}:/var/lib/tailscale
-      - ${TS_CONFIG_LOCATION}:/config
+      - ./.runtime/immich-tailscale/:/var/lib/tailscale/
+      - ./config/immich-tailscale/:/config/
       - /dev/net/tun:/dev/net/tun
     restart: unless-stopped
-    env_file:
-      - .env
-
   immich-server:
     container_name: immich_server
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION}
     volumes:
-      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - ./data/library:/usr/src/app/upload
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
@@ -65,7 +36,7 @@ services:
     restart: unless-stopped
     healthcheck:
       disable: false
-    network_mode: "service:tailscale"
+    network_mode: "service:immich-tailscale"
 
   immich-machine-learning:
     container_name: immich_machine_learning
@@ -94,7 +65,7 @@ services:
       POSTGRES_DB: ${DB_DATABASE_NAME}
       POSTGRES_INITDB_ARGS: '--data-checksums'
     volumes:
-      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: pg_isready --dbname='${DB_DATABASE_NAME}' --username='${DB_USERNAME}' || exit 1; Chksum="$$(psql --dbname='${DB_DATABASE_NAME}' --username='${DB_USERNAME}' --tuples-only --no-align --command='SELECT COALESCE(SUM(checksum_failures), 0) FROM pg_stat_database')"; echo "checksum failure count is $$Chksum"; [ "$$Chksum" = '0' ] || exit 1
       interval: 5m
